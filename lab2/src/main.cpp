@@ -16,8 +16,8 @@ using aligned_vector = std::vector<T, tapa::aligned_allocator<T>>;
 
 DEFINE_string(btstm, "", "path to the bitstream file, run csim if empty");
 DEFINE_string(data, "./cifar-10", "path to the CIFA10 binary data folder");
-DEFINE_int32(train_num, 5000, "number of training images per class");
-DEFINE_int32(test_num, 10000, "number of test images");
+DEFINE_int32(train_num, 32, "number of training images per class");
+DEFINE_int32(test_num, 32, "number of test images");
 DEFINE_bool(cput, true, "tune host CPU KNN performance if true");
 
 //read binary file and store the content into one vector uint8_t
@@ -68,135 +68,6 @@ void KNN_host(std::vector<aligned_vector<uint8_t> > & train_image,
     }
   }
 }
-
-/**  to delete the follow functions **/
-
-void KNN_host_v2(std::vector<aligned_vector<uint8_t> > & train_image,
-              aligned_vector<uint8_t> & test_image,
-              aligned_vector<uint8_t> & predict_label,
-              const int test_image_num,
-              const int train_image_each_class_num = 100) {
-  predict_label.resize(test_image_num);
-  for (int t = 0; t < test_image_num; t++) {
-    uint8_t best_label = 0;
-    int best_dist = 0x7FFFFFFF;
-    uint8_t test_img_cache[3072];
-    for (int i = 0; i < 3072; i++) {
-      test_img_cache[i] = test_image[t * 3072 + i];
-    }
-    for (int tr = 0; tr < train_image_each_class_num; tr++) {
-      for (int c = 0; c < 10; ++c) {
-        int dist = 0;
-        for (int i = 0; i < 3072; ++i) {
-          int d = (int)train_image[c][tr * 3072 + i] - (int)test_img_cache[i];
-          dist += d * d;
-        }
-        if (dist < best_dist) {
-          best_dist = dist;
-          best_label = c;
-        }
-      }
-    }
-    predict_label[t] = best_label;
-    if (t % 1000 == 0) {
-      clog << "Processed " << t << " test images" << endl;
-    }
-  }
-}
-
-void KNN_host_v3(std::vector<aligned_vector<uint8_t> > & train_image,
-              aligned_vector<uint8_t> & test_image,
-              aligned_vector<uint8_t> & predict_label,
-              const int test_image_num,
-              const int train_image_each_class_num = 100) {
-  predict_label.resize(test_image_num);
-  for (int t = 0; t < test_image_num; t++) {
-    uint8_t best_label = 0;
-    int best_dist = 0x7FFFFFFF;
-    uint8_t test_img_cache[3072];
-    for (int i = 0; i < 3072; i++) {
-      test_img_cache[i] = test_image[t * 3072 + i];
-    }
-    for (int c = 0; c < 10; ++c) {
-      for (int tr = 0; tr < train_image_each_class_num; tr++) {
-        int dist = 0;
-        for (int i = 0; i < 3072; ++i) {
-          int d = (int)train_image[c][tr * 3072 + i] - (int)test_img_cache[i];
-          dist += d * d;
-        }
-        if (dist < best_dist) {
-          best_dist = dist;
-          best_label = c;
-        }
-      }
-    }
-    predict_label[t] = best_label;
-    if (t % 1000 == 0) {
-      clog << "Processed " << t << " test images" << endl;
-    }
-  }
-}
-
-void KNN_host_v4(std::vector<aligned_vector<uint8_t> > & train_image,
-              aligned_vector<uint8_t> & test_image,
-              aligned_vector<uint8_t> & predict_label,
-              const int test_image_num,
-              const int train_image_each_class_num = 100) {
-  predict_label.resize(test_image_num);
-  const int Test_BLOCK = 10;
-  for (int t = 0; t < test_image_num; t += Test_BLOCK) {
-    uint8_t best_label[Test_BLOCK];
-    int best_dist[Test_BLOCK];
-    uint8_t test_img_cache[Test_BLOCK][3072];
-    for (int tt = 0; tt < Test_BLOCK; tt++) {
-      best_label[tt] = 0;
-      best_dist[tt] = 0x7FFFFFFF;
-      // copy 3072 bytes from test_image to test_img_cache, fast code
-      std::memcpy(test_img_cache[tt], &test_image[(t + tt) * 3072], 3072);
-      
-      /*
-      for (int i = 0; i < 3072; i++) {
-        test_img_cache[tt][i] = test_image[(t + tt) * 3072 + i];
-      } 
-      */
-    }
-    for (int c = 0; c < 10; ++c) {
-      for (int tr = 0; tr < train_image_each_class_num; tr++) {
-        uint8_t train_img_cache[3072];
-        std::memcpy(train_img_cache, &train_image[c][tr * 3072], 3072);
-
-        /*
-        for (int i = 0; i < 3072; i++) {
-          train_img_cache[i] = train_image[c][tr * 3072 + i];
-        }
-        */
-       
-        int dist[Test_BLOCK];
-        for (int tt = 0; tt < Test_BLOCK; tt++) {
-          dist[tt] = 0;
-          for (int i = 0; i < 3072; i++) {
-            int d = (int)train_img_cache[i] - (int)test_img_cache[tt][i];
-            dist[tt] += d * d;
-          }
-        }
-        for (int tt = 0; tt < Test_BLOCK; tt++) {
-          if (dist[tt] < best_dist[tt]) {
-            best_dist[tt] = dist[tt];
-            best_label[tt] = c;
-          }
-        }
-      }
-    }
-    for (int tt = 0; tt < 10; tt++) {
-      predict_label[t + tt] = best_label[tt];
-    }
-    if (t % 1000 == 0) {
-      clog << "Processed " << t << " test images" << endl;
-    }
-  }
-}
-
-/* end here */
 
 void Verify_predcition_accuracy(
     aligned_vector<uint8_t> & test_label,

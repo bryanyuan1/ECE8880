@@ -4,6 +4,8 @@ GXX_FLAGS := -w -O2 -std=c++17
 LIB := -ltapa -lfrt -lglog -lgflags -lOpenCL
 SRC := ./src
 
+Platform := xilinx_u55c_gen3x16_xdma_3_202210_1
+
 .DEFAULT_GOAL := knn
 
 knn.o: $(SRC)/knn.cpp
@@ -16,7 +18,7 @@ knn: knn.o main.o
 	tapa g++ -- $(GXX_FLAGS) -o $@ $^ $(INC_XCL) $(LIB)
 
 swsim: knn
-	./knn --cput=false --train_num=64 --test_num=32
+	./knn --skipk=false --train_num=8 --test_num=16
 
 hls: $(SRC)/knn.cpp
 	tapa compile --top KNNKernel \
@@ -26,7 +28,17 @@ hls: $(SRC)/knn.cpp
 	-o knn.xo
 
 hwemu: knn.xo
-	./knn --cput=false --btstm=./knn.xo --train_num=64 --test_num=32
+	./knn --skipk=false --btstm=./knn.xo --train_num=4 --test_num=8
+
+hwgen: knn.xo
+	v++ -o knn.$(Platform).hw.xclbin \
+	--link \
+	--target hw \
+	--kernel KNNKernel \
+	--platform $(Platform) \
+	--config $(SRC)/link_config.cfg \
+	--connectivity.nk KNNKernel:1:KNNKernel \
+	knn.xo
 
 clean:
 	rm *.o knn

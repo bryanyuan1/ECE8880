@@ -30,16 +30,6 @@ hls: $(SRC)/knn.cpp
 hwemu: knn.xo
 	./knn --skipk=false --btstm=./knn.xo --train_num=4 --test_num=8
 
-hwgen: knn.xo
-	v++ -o knn.$(Platform).hw.xclbin \
-	--link \
-	--target hw \
-	--kernel KNNKernel \
-	--platform $(Platform) \
-	--config $(SRC)/link_config.cfg \
-	--connectivity.nk KNNKernel:1:KNNKernel \
-	knn.xo
-
 clean:
 	rm *.o knn
 

@@ -39,18 +39,22 @@ void knn(
   const int train_image_each_class_num
 ){
   for (int t = 0; t < test_image_num; t++) {
+    #pragma HLS loop_tripcount min=1 max=16
     //cout << "t = " << t << endl;
     int best_label = 0;
     int best_dist = 0x7FFFFFFF;
     uint32_t test_img[kbytes_img / 4];
     for (int i = 0; i < kbytes_img / 4; i++) {
+    #pragma HLS loop_tripcount min=1 max=768
     #pragma HLS PIPELINE II=1
       test_img[i] = q_test.read();
     }
     for (int tr = 0; tr < train_image_each_class_num; tr++) {
+    #pragma HLS loop_tripcount min=1 max=8
       for (int c = 0; c < 10; ++c) {
         int dist = 0;
         for (int i = 0; i < kbytes_img / 4; ++i) {
+        #pragma HLS loop_tripcount min=1 max=768
         #pragma HLS PIPELINE II=1
           uint32_t train_image_4byte = (c == 0 ? q_in_0.read() :
                                         c == 1 ? q_in_1.read() :

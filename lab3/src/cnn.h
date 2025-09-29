@@ -6,10 +6,10 @@
 #define weight(i, j, p, q) \
     weight[(i) * kNum * kKernel * kKernel + (j) * kKernel * kKernel + \
     (p) * kKernel + (q)]
-#define input(j, h, w) \
-    input[(j) * kInImSize * kInImSize + (h) * kInImSize + (w)]
-#define output(i, h, w) \
-    output[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)]
+#define in_img(j, h, w) \
+    in_img[(j) * kInImSize * kInImSize + (h) * kInImSize + (w)]
+#define out_img(i, h, w) \
+    out_img[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)]
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
@@ -21,10 +21,10 @@ constexpr int kInImSize_0 = 228;  //input image size
 constexpr int kOutImSize_0 = 112; //output image size (after maxpool)
 
 void CnnKernel(
-    tapa::mmap<float> input,
+    tapa::mmap<float> in_img,
     tapa::mmap<float> weight,
     tapa::mmap<float> bias,
-    tapa::mmap<float> output,
+    tapa::mmap<float> out_img,
     const int kNum,
     const int kKernel,
     const int kImSize,

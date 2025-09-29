@@ -26,10 +26,10 @@ DEFINE_int32(img, 224, "image size (after conv)");
 
 // Sequential CNN implementation
 void CnnSequential(
-    aligned_vector<float> & input,
+    aligned_vector<float> & in_img,
     aligned_vector<float> & weight, 
     aligned_vector<float> & bias,
-    aligned_vector<float> & output,
+    aligned_vector<float> & out_img,
     const int kNum,
     const int kKernel,
     const int kImSize,
@@ -53,7 +53,7 @@ void CnnSequential(
         for (int w = 0; w < kImSize; ++w) {
           for (int p = 0; p < kKernel; ++p) {
             for (int q = 0; q < kKernel; ++q)
-              C[i][h][w] += weight(i, j, p, q) * input(j, h + p, w + q);
+              C[i][h][w] += weight(i, j, p, q) * in_img(j, h + p, w + q);
           }
         }
       }
@@ -73,7 +73,7 @@ void CnnSequential(
   for (int i = 0; i < kNum; ++i) {
     for (int h = 0; h < kOutImSize; ++h) {
       for (int w = 0; w < kOutImSize; ++w) {
-        output(i, h, w) = max(
+        out_img(i, h, w) = max(
             max(C[i][h * 2][w * 2    ], C[i][h * 2 + 1][w * 2    ]),
             max(C[i][h * 2][w * 2 + 1], C[i][h * 2 + 1][w * 2 + 1]));
       }
@@ -152,7 +152,7 @@ float IsError(float a, float b) {
 
 //verify against ground truth
 int Verify(const string& data_dir,
-           aligned_vector<float> & output,
+           aligned_vector<float> & out_img,
            const int kNum,
            const int kKernel,
            const int kImSize,
@@ -166,7 +166,7 @@ int Verify(const string& data_dir,
     return EXIT_FAILURE;
   }
   auto ground_truth = reinterpret_cast<float*>(mmap(
-      nullptr, sizeof(*output.data()) * output.size(), PROT_READ, MAP_SHARED, fd, 0));
+      nullptr, sizeof(*out_img.data()) * out_img.size(), PROT_READ, MAP_SHARED, fd, 0));
   if (ground_truth == MAP_FAILED) {
     clog << "Incomplete " << kOutputFile << endl;
     close(fd);
@@ -176,9 +176,9 @@ int Verify(const string& data_dir,
   for (int i = 0; i < kNum; ++i) {
     for (int h = 0; h < kOutImSize; ++h) {
       for (int w = 0; w < kOutImSize; ++w) {
-        if (IsError(output(i, h, w), ground_truth[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)])) {
+        if (IsError(out_img(i, h, w), ground_truth[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)])) {
           if (first) {
-            clog << "First error: get " << output(i, h, w) << ", expecting "
+            clog << "First error: get " << out_img(i, h, w) << ", expecting "
                  << ground_truth[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)] << " @ i = " << i << ", h = " << h
                  << ", w = " << w << endl;
             first = false;
@@ -188,7 +188,7 @@ int Verify(const string& data_dir,
       }
     }
   }
-  munmap(ground_truth, sizeof(*output.data()) * output.size());
+  munmap(ground_truth, sizeof(*out_img.data()) * out_img.size());
   close(fd);
   return error;
 }
@@ -196,7 +196,7 @@ int Verify(const string& data_dir,
 //verify against CPU output
 int Verify_againt_cpu(
   aligned_vector<float> & output_cpu,
-  aligned_vector<float> & output,
+  aligned_vector<float> & out_img,
   const int kNum,
   const int kKernel,
   const int kImSize,
@@ -207,9 +207,9 @@ int Verify_againt_cpu(
   for (int i = 0; i < kNum; ++i) {
     for (int h = 0; h < kOutImSize; ++h) {
       for (int w = 0; w < kOutImSize; ++w) {
-        if (IsError(output(i, h, w), output_cpu[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)])) {
+        if (IsError(out_img(i, h, w), output_cpu[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)])) {
           if (first) {
-            clog << "First error: get " << output(i, h, w) << ", expecting "
+            clog << "First error: get " << out_img(i, h, w) << ", expecting "
                  << output_cpu[(i) * kOutImSize * kOutImSize + (h) * kOutImSize + (w)] << " @ i = " << i << ", h = " << h
                  << ", w = " << w << endl;
             first = false;

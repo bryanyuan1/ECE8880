@@ -23,7 +23,7 @@ swsim: cnn
 hls: $(SRC)/cnn.cpp
 	tapa compile --top CnnKernel \
 	--platform xilinx_u55c_gen3x16_xdma_3_202210_1 \
-	--clock-period 4.4 \
+	--clock-period 3.33 \
 	-f $^ \
 	-o cnn.xo
 

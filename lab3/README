@@ -1,0 +1,5 @@
+This lab is about a one layer convolutional network.
+
+CNN Weights and loading fucntions reused from UCLA CS 259 21F Lab2. Newly designed TAPA host and kernel.
+
+

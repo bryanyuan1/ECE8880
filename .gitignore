@@ -1,0 +1,10 @@
+lab1/work.out
+
+lab2/work.out
+lab2/knn
+lab2/*.o
+lab2/*.xo
+
+lab3/work.out
+lab3/*.o
+lab3/*.xo

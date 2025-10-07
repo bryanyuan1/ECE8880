@@ -39,18 +39,21 @@ void read_input(
   const int kImSize,
   const int kInImSize
 ) {
-  for (int j = 0; j < kNum; ++j) { // each kernel kNum channels
+  for (int i = 0; i < kNum; ++i) { // kNum kernels
   #pragma HLS loop_tripcount min=1 max=kNum_0
-    for (int h = 0; h < kImSize; ++h) { 
-    #pragma HLS loop_tripcount min=1 max=kImSize_0
-      for (int w = 0; w < kImSize; ++w) { // each output pixel
+    for (int j = 0; j < kNum; ++j) { // each kernel kNum channels
+    #pragma HLS loop_tripcount min=1 max=kNum_0
+      for (int h = 0; h < kImSize; ++h) { 
       #pragma HLS loop_tripcount min=1 max=kImSize_0
-        for (int p = 0; p < kKernel; ++p) {
-        #pragma HLS loop_tripcount min=1 max=kKernel_0
-          for (int q = 0; q < kKernel; ++q) { // perform single kernel channel
+        for (int w = 0; w < kImSize; ++w) { // each output pixel
+        #pragma HLS loop_tripcount min=1 max=kImSize_0
+          for (int p = 0; p < kKernel; ++p) {
           #pragma HLS loop_tripcount min=1 max=kKernel_0
-          #pragma HLS PIPELINE II=1
+            for (int q = 0; q < kKernel; ++q) { // perform single kernel channel
+            #pragma HLS loop_tripcount min=1 max=kKernel_0
+            #pragma HLS PIPELINE II=1
             in_img_stream.write(in_img(j, h + p, w + q));
+            }
           }
         }
       }
@@ -77,6 +80,7 @@ void read_weight(
           #pragma HLS loop_tripcount min=1 max=kKernel_0
             for (int q = 0; q < kKernel; ++q) { // perform single kernel channel
             #pragma HLS loop_tripcount min=1 max=kKernel_0
+            #pragma HLS PIPELINE II=1
               in_weight_stream.write(weight(i, j, p, q));
             }
           }
@@ -90,7 +94,8 @@ void read_bias(
   tapa::mmap<float> bias,
   tapa::ostream<float> &in_bias_stream,
   const int kNum,
-  const int kKernel
+  const int kKernel,
+  const int kImSize
 ) {
   for (int i = 0; i < kNum; ++i) {
   #pragma HLS loop_tripcount min=1 max=kNum_0
@@ -98,7 +103,27 @@ void read_bias(
     #pragma HLS loop_tripcount min=1 max=kImSize_0
       for (int w = 0; w < kImSize; ++w) {
       #pragma HLS loop_tripcount min=1 max=kImSize_0
+      #pragma HLS PIPELINE II=1
         in_bias_stream.write(bias[i]);
+      }
+    }
+  }
+}
+
+void write_output(
+  tapa::mmap<float> out_img,
+  tapa::istream<float> &out_img_stream,
+  const int kNum,
+  const int kOutImSize
+) {
+  for (int i = 0; i < kNum; ++i) {
+  #pragma HLS loop_tripcount min=1 max=kNum_0
+    for (int h = 0; h < kOutImSize; ++h) {
+    #pragma HLS loop_tripcount min=1 max=kOutImSize_0
+      for (int w = 0; w < kOutImSize; ++w) {
+      #pragma HLS loop_tripcount min=1 max=kOutImSize_0
+      #pragma HLS PIPELINE II=1
+        out_img(i, h, w) = out_img_stream.read();
       }
     }
   }
@@ -107,8 +132,8 @@ void read_bias(
 void cnncore(
   tapa::istream<float> &in_img_stream,
   tapa::istream<float> &in_weight_stream,
-  tapa::ostream<float> &in_bias_stream,
-  tapa::mmap<float> out_img,
+  tapa::istream<float> &in_bias_stream,
+  tapa::ostream<float> &out_img_stream,
   const int kNum,
   const int kKernel,
   const int kImSize,
@@ -122,6 +147,7 @@ void cnncore(
     #pragma HLS loop_tripcount min=1 max=kImSize_0
       for (int w = 0; w < kImSize; ++w) {
       #pragma HLS loop_tripcount min=1 max=kImSize_0
+      #pragma HLS PIPELINE II=1
         C[i][h][w] = in_bias_stream.read();
       }
     }
@@ -140,6 +166,7 @@ void cnncore(
           #pragma HLS loop_tripcount min=1 max=kKernel_0
             for (int q = 0; q < kKernel; ++q) { // perform single kernel channel
             #pragma HLS loop_tripcount min=1 max=kKernel_0
+            #pragma HLS PIPELINE II=1
               C[i][h][w] += in_weight_stream.read() * in_img_stream.read();
             }
           }
@@ -167,9 +194,10 @@ void cnncore(
     #pragma HLS loop_tripcount min=1 max=kOutImSize_0
       for (int w = 0; w < kOutImSize; ++w) {
       #pragma HLS loop_tripcount min=1 max=kOutImSize_0
-        out_img(i, h, w) = max(
+      #pragma HLS PIPELINE II=1
+        out_img_stream.write(max(
           max(C[i][h * 2][w * 2    ], C[i][h * 2 + 1][w * 2    ]),
-          max(C[i][h * 2][w * 2 + 1], C[i][h * 2 + 1][w * 2 + 1]));
+          max(C[i][h * 2][w * 2 + 1], C[i][h * 2 + 1][w * 2 + 1])));
       }
     }
   }
@@ -186,17 +214,16 @@ void CnnKernel(
   const int kInImSize,
   const int kOutImSize) {
   
-  tapa::stream<float, 2> in_img_stream("q_in_image_0");
-  tapa::stream<float, 2> in_weight_stream("w_in_image_0");
-  tapa::stream<float, 2> in_bias_stream("b_in_image_0");
+  tapa::stream<float, 32> in_img_stream("q_in_image_0");
+  tapa::stream<float, 32> in_weight_stream("w_in_image_0");
+  tapa::stream<float, 32> in_bias_stream("b_in_image_0");
+  tapa::stream<float, 32> out_img_stream("q_out_image_0");
 
   tapa::task()
-    .invoke(read_input, in_img, in_img_stream, kNum, kKernel, kImSize, kInImSize);
-  tapa::task()
-    .invoke(read_weight, weight, in_weight_stream, kNum, kKernel, kImSize);
-  tapa::task()
-    .invoke(read_bias, bias, in_bias_stream, kNum, kKernel);
-  tapa::task()
-    .invoke(cnncore, in_img_stream, in_weight_stream, in_bias_stream, out_img, kNum, kKernel, kImSize, kInImSize, kOutImSize);
+    .invoke(read_input, in_img, in_img_stream, kNum, kKernel, kImSize, kInImSize)
+    .invoke(read_weight, weight, in_weight_stream, kNum, kKernel, kImSize)
+    .invoke(read_bias, bias, in_bias_stream, kNum, kKernel, kImSize)
+    .invoke(write_output, out_img, out_img_stream, kNum, kOutImSize)
+    .invoke(cnncore, in_img_stream, in_weight_stream, in_bias_stream, out_img_stream, kNum, kKernel, kImSize, kInImSize, kOutImSize);
 }
 
